@@ -88,7 +88,10 @@ class ENVI:
             elif(self.sc_data.X.min() < 0):
                 sc.pp.highly_variable_genes(self.sc_data, n_top_genes=num_HVG)
             else:
-                sc_data.layers["log"] = np.log(self.sc_data.X + 1)
+                if not isinstance(self.sc_data.X, np.ndarray):
+                    sc_data.layers["log"] = np.log(self.sc_data.X.toarray() + 1)
+                else:
+                    sc_data.layers["log"] = np.log(self.sc_data.X + 1)
                 sc.pp.highly_variable_genes(self.sc_data, n_top_genes=num_HVG, layer="log")
 
         sc_genes_keep = np.union1d(
@@ -324,17 +327,20 @@ class ENVI:
         """
         :meta private:
         """
-
+        x = self.spatial_data.X[0:1]
+        if not isinstance(x, np.ndarray):
+            x = x.toarray()
+        x = self.inp_log_fn(x)
         key, subkey1, subkey2 = random.split(key, num=3)
         params = self.model.init(
             rngs={"params": subkey1},
-            x=self.inp_log_fn(self.spatial_data.X[0:1]),
+            x=x,
             mode="spatial",
             key=subkey2,
         )["params"]
 
         lr_sched = optax.exponential_decay(init_lr, decay_steps, 0.5, staircase=True)
-        tx = optax.adam(lr_sched)  #
+        tx = optax.adam(lr_sched)
 
         return TrainState.create(
             apply_fn=self.model.apply, params=params, tx=tx, metrics=Metrics.empty()
@@ -433,7 +439,11 @@ class ENVI:
         )
 
         sc_X = self.sc_data.X
+        if not isinstance(sc_X, np.ndarray):
+            sc_X = sc_X.toarray()
         spatial_X = self.spatial_data.X
+        if not isinstance(spatial_X, np.ndarray):
+            spatial_X = spatial_X.toarray()
         spatial_COVET = self.spatial_data.obsm["COVET_SQRT"]
 
         for training_step in tq:
@@ -623,12 +633,17 @@ class ENVI:
 
         :return: nothing, adds 'envi_latent' self.spatial_data.obsm and self.spatial_data.obsm
         """
-
+        spatial_x = self.spatial_data.X
+        if not isinstance(spatial_x, np.ndarray):
+            spatial_x = spatial_x.toarray()
+        sc_x = self.sc_data[:, self.spatial_data.var_names].X
+        if not isinstance(sc_x, np.ndarray):
+            sc_x = sc_x.toarray()
         self.spatial_data.obsm["envi_latent"] = self.encode(
-            self.spatial_data.X, mode="spatial"
+            spatial_x, mode="spatial"
         )
         self.sc_data.obsm["envi_latent"] = self.encode(
-            self.sc_data[:, self.spatial_data.var_names].X, mode="sc"
+            sc_x, mode="sc"
         )
 
     def impute_genes(self):

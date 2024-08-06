@@ -180,8 +180,10 @@ def CalcCovMats(spatial_data, kNN, genes, spatial_key="spatial", batch_key=-1):
     """
     :meta private:
     """
-
-    ExpData = np.log(spatial_data[:, genes].X + 1)
+    if not isinstance(spatial_data.X, np.ndarray):
+        ExpData = np.log(spatial_data[:, genes].X.toarray() + 1)
+    else:
+        ExpData = np.log(spatial_data[:, genes].X + 1)
 
     if batch_key == -1:
         kNNGraph = sklearn.neighbors.kneighbors_graph(
